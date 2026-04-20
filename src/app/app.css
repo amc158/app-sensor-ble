@@ -1,0 +1,215 @@
+.container {
+  text-align: center;
+  font-family: 'Segoe UI', sans-serif;
+  padding: 40px 20px;
+  background-color: #f8f9fa;
+  min-height: 100vh;
+}
+
+.card {
+  background: white;
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  margin-top: 20px;
+}
+
+.btn-connect {
+  padding: 18px;
+  font-size: 18px;
+  font-weight: bold;
+  background-color: #0052cc;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  width: 100%;
+  cursor: pointer;
+}
+
+.status-badge {
+  background-color: #e7f3ef;
+  color: #28a745;
+  padding: 10px;
+  border-radius: 20px;
+  display: inline-block;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.button-group {
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.btn-on { background-color: #28a745; color: white; border: none; padding: 20px; border-radius: 10px; flex: 1; font-weight: bold; }
+.btn-off { background-color: #dc3545; color: white; border: none; padding: 20px; border-radius: 10px; flex: 1; font-weight: bold; }
+
+.btn-link {
+  margin-top: 30px;
+  background: none;
+  border: none;
+  color: #666;
+  text-decoration: underline;
+  font-size: 14px;
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Nuevos estilos para el botón único */
+.toggle-btn {
+  width: 100%;
+  font-size: 20px;
+  padding: 25px;
+  margin-top: 15px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  transition: all 0.3s ease; /* Esto hace que el color cambie suavemente */
+}
+
+/* Efecto al pulsar el botón */
+.toggle-btn:active {
+  transform: scale(0.95);
+}
+
+/* --- ESTILOS DEL PANEL DE LECTURAS --- */
+.readings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.badge-live {
+  background-color: #ffeaea;
+  color: #dc3545;
+  padding: 5px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  animation: pulse 1.5s infinite; /* Animación de parpadeo */
+}
+
+.badge-paused {
+  background-color: #e9ecef;
+  color: #6c757d;
+  padding: 5px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.latest-reading {
+  text-align: center;
+  padding: 10px 0 20px 0;
+  border-bottom: 2px solid #f0f0f0;
+  margin-bottom: 15px;
+}
+
+.big-value {
+  font-size: 48px;
+  font-weight: bold;
+  color: #0052cc;
+}
+
+.big-unit {
+  font-size: 20px;
+  color: #666;
+  font-weight: bold;
+}
+
+.history-list {
+  max-height: 180px;
+  overflow-y: auto; /* Permite hacer scroll si hay muchos datos */
+  padding-right: 5px;
+}
+
+.reading-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e0e0e0;
+}
+
+.history-index {
+  color: #aaa;
+  font-size: 14px;
+}
+
+.value {
+  font-weight: bold;
+  color: #333;
+}
+
+.unit {
+  color: #888;
+  font-size: 14px;
+}
+
+.empty-state {
+  text-align: center;
+  color: #888;
+  font-style: italic;
+}
+
+/* Animación para el piloto rojo */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+
+/* --- ESTILOS DE LA TABLA SPIFFS --- */
+.success-text {
+  color: #28a745;
+  font-weight: bold;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.table-container {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+
+.scroll-table {
+  max-height: 250px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th {
+  background: #e9ecef;
+  padding: 10px;
+  position: sticky; /* Deja la cabecera fija al hacer scroll */
+  top: 0;
+  border-bottom: 2px solid #ddd;
+  color: #333;
+}
+
+td {
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+  text-align: center;
+  color: #555;
+}
+
+tr:nth-child(even) td {
+  background-color: #fafafa;
+}
