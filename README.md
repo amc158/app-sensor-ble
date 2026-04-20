@@ -1,59 +1,83 @@
-# AppSensorBle
+# 📱 App Cliente: Sensor de Presión BLE (Angular + Capacitor)
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.7.
+Esta es la aplicación oficial para interactuar con el **Sensor de Presión BLE**. Gracias a la combinación de **Angular 19** y **Capacitor**, la aplicación es multiplataforma, funcionando de manera nativa en dispositivos **Android** y como Web App (PWA) en navegadores con soporte Web Bluetooth (como Google Chrome).
 
-## Development server
+---
 
-To start a local development server, run:
+## 🚀 Acceso a la Aplicación
 
+Puedes usar la aplicación de dos formas según tu dispositivo:
+
+### 🌐 Para Navegador (Web App)
+[🔗 Acceder a la App en Vivo (GitHub Pages)](https://amc158.github.io/app-sensor-ble/)
+> **Requisito crítico:** Para que el Bluetooth funcione en la web, debes usar **Google Chrome** o **Microsoft Edge**. La conexión Bluetooth web requiere un navegador compatible y una conexión segura HTTPS (ya incluida).
+
+### 📱 Para Android (Instalable)
+[⬇️ Descargar SensorBLE-App-v1.0.0.apk](https://github.com/amc158/app-sensor-ble/releases/download/v1.0.0/SensorBLE-App-v1.0.0.apk)
+> **Nota:** Una vez descargado, abre el archivo para instalarlo. Si Android te muestra una advertencia, asegúrate de permitir la "Instalación desde orígenes desconocidos" en los ajustes de seguridad de tu navegador o gestor de archivos.
+
+---
+
+## ⚙️ Ecosistema: Proyecto de Hardware
+
+Esta aplicación es el "visor" del sistema. La lógica del microcontrolador (firmware en C para ESP32-S3) que lee el sensor físico y gestiona la memoria interna se encuentra aquí:
+
+🔗 **Repositorio del Firmware:** [https://github.com/ualamc158/sensorBLEAppAngular](https://github.com/ualamc158/sensorBLEAppAngular)
+
+---
+
+## ✨ Características Principales
+
+* **Panel de Control en Vivo:** Visualiza la presión actual en milibares (mB) con un historial dinámico.
+* **Gestión Remota:** Comandos para Activar/Pausar la lectura del sensor desde el móvil.
+* **Descarga de Datos (Caja Negra):** Recupera el historial de promedios guardado en la memoria flash del ESP32.
+* **Mantenimiento de Memoria:** Función para borrar remotamente los archivos de datos del sensor.
+
+---
+
+## 👨‍💻 Guía para Desarrolladores
+
+Si deseas contribuir al código o compilar tu propia versión, el proyecto utiliza **Angular CLI** versión 21.2.7.
+
+### 1. Requisitos previos
+Clona el repositorio e instala las dependencias:
+```bash
+npm install
+```
+
+### 2. Servidor de desarrollo
+Inicia el servidor local para pruebas web:
 ```bash
 ng serve
 ```
+Navega a `http://localhost:4200/`. El Bluetooth web solo funcionará si usas Chrome y el sitio es servido vía HTTPS o desde `localhost`.
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
+### 3. Generación de componentes (Scaffolding)
+Para añadir nuevas funcionalidades:
 ```bash
-ng generate component component-name
+ng generate component nombre-del-componente
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
+### 4. Compilación y Sincronización Nativa (Android)
+Para generar los archivos de producción y pasarlos al proyecto de Android:
 ```bash
 ng build
+npx cap sync android
 ```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
+Luego puedes abrir Android Studio para generar tu propia APK con:
 ```bash
-ng test
+npx cap open android
 ```
 
-## Running end-to-end tests
+### 5. Pruebas (Testing)
+* **Unitarias:** `ng test` (usando Vitest).
+* **End-to-End:** `ng e2e`.
 
-For end-to-end (e2e) testing, run:
+---
 
-```bash
-ng e2e
-```
+## 🛠️ Tecnologías Utilizadas
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+* **Framework:** Angular 19+
+* **Native Bridge:** Capacitor (Ionic)
+* **Bluetooth Engine:** `@capacitor-community/bluetooth-le`
+* **UI/Styles:** CSS3 nativo con diseño responsivo para móviles.
