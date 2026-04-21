@@ -19,7 +19,7 @@
         <button 
           [class]="isSensorOn() ? 'btn-off toggle-btn' : 'btn-on toggle-btn'" 
           (click)="toggleSensor()"
-          [disabled]="bleService.isDownloading()">
+          [disabled]="bleService.isDownloading() || bleService.isUpdating()">
           {{ isSensorOn() ? '⏹ APAGAR SENSOR' : '▶ ACTIVAR SENSOR' }}
         </button>
       </div>
@@ -56,10 +56,12 @@
       <div class="button-container" style="display: flex; gap: 10px; margin-bottom: 15px;">
         <button class="btn-connect" style="background-color: #6f42c1; flex: 2; padding: 15px;" 
                 (click)="descargarMemoria()" 
-                [disabled]="bleService.isDownloading()">
+                [disabled]="bleService.isDownloading() || bleService.isUpdating()">
           {{ bleService.isDownloading() ? '⏳ DESCARGANDO...' : '📥 DESCARGAR DATOS' }}
         </button>
-        <button class="btn-off" style="flex: 1; padding: 15px;" (click)="borrarMemoria()" [disabled]="bleService.isDownloading()">
+        <button class="btn-off" style="flex: 1; padding: 15px;" 
+                (click)="borrarMemoria()" 
+                [disabled]="bleService.isDownloading() || bleService.isUpdating()">
           🗑 BORRAR
         </button>
       </div>
@@ -82,6 +84,27 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 15px;">
+      <h3>🚀 Actualización Inalámbrica (OTA)</h3>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <input #fileInput type="file" accept=".bin" (change)="onFileSelected($event)" [disabled]="bleService.isUpdating()">
+        
+        <button class="btn-connect" style="background-color: #ff8c00;" 
+                (click)="iniciarActualizacion()" 
+                [disabled]="bleService.isUpdating()">
+          {{ bleService.isUpdating() ? 'ACTUALIZANDO...' : 'INICIAR ACTUALIZACIÓN' }}
+        </button>
+        
+        <div *ngIf="bleService.otaProgress() > 0" style="margin-top: 10px;">
+          <progress [value]="bleService.otaProgress()" max="100" style="width: 100%;"></progress>
+          <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-top: 5px; font-weight: bold;">
+            <span>{{ bleService.otaProgress() }}% completado</span>
+            <span>⏱️ {{ bleService.otaTimeSeconds() }}s transcurridos</span>
+          </div>
         </div>
       </div>
     </div>
