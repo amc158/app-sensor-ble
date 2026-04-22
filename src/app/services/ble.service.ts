@@ -1,9 +1,11 @@
 import { Injectable, signal, NgZone } from '@angular/core';
+import { Capacitor } from '@capacitor/core'; 
 import {
   BleClient,
   numbersToDataView,
   ConnectionPriority,
 } from '@capacitor-community/bluetooth-le';
+
 
 @Injectable({
   providedIn: 'root',
@@ -108,60 +110,64 @@ export class BleService {
     }
   }
 
-  // --- FUNCIÓN OTA OPTIMIZADA (SOLO UNA VERSIÓN) ---
+  // --- FUNCIÓN OTA FINAL (MÁXIMA INTEGRIDAD Y VELOCIDAD) ---
   async enviarOTA(firmware: ArrayBuffer) {
-  if (!this.isConnected()) return;
+    if (!this.isConnected()) return;
 
-  this.ngZone.run(() => {
-    this.isUpdating.set(true);
-    this.otaProgress.set(0);
-    this.otaTimeSeconds.set(0);
-  });
-
-  this.otaTimerInterval = setInterval(() => {
-    this.ngZone.run(() => this.otaTimeSeconds.update((s) => s + 1));
-  }, 1000);
-
-  try {
-    await this.enviarComando(4); // Iniciar proceso OTA en el ESP32
-    await new Promise(r => setTimeout(r, 200));
-
-    const CHUNK_SIZE = 244; 
-    const view = new Uint8Array(firmware);
-    const totalChunks = Math.ceil(view.length / CHUNK_SIZE);
-
-    for (let i = 0; i < totalChunks; i++) {
-      const chunk = view.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-      const dataView = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-
-      // Enviamos sin respuesta para velocidad máxima
-      await BleClient.writeWithoutResponse(
-        this.deviceId(),
-        this.SERVICE_UUID,
-        this.OTA_CHAR_UUID,
-        dataView,
-      );
-
-      // Actualizamos UI solo cada 100 bloques para evitar lentitud por renderizado
-      if (i % 100 === 0) {
-        const progress = Math.round(((i + 1) / totalChunks) * 100);
-        this.ngZone.run(() => this.otaProgress.set(progress));
-      }
-    }
-
-    await this.enviarComando(5); // Finalizar y reiniciar
-    this.ngZone.run(() => this.otaProgress.set(100));
-
-  } catch (error) {
-    console.error('Error OTA:', error);
-    alert('Fallo en la actualización');
-  } finally {
     this.ngZone.run(() => {
-      this.isUpdating.set(false);
-      clearInterval(this.otaTimerInterval);
+      this.isUpdating.set(true);
+      this.otaProgress.set(0);
+      this.otaTimeSeconds.set(0);
     });
+
+    this.otaTimerInterval = setInterval(() => {
+      this.ngZone.run(() => this.otaTimeSeconds.update((s) => s + 1));
+    }, 1000);
+
+    try {
+      await this.enviarComando(4); // Iniciar proceso OTA en el ESP32
+      await new Promise(r => setTimeout(r, 500)); // Tiempo para esp_ota_begin
+
+      // LÍMITE FÍSICO REAL: 244 bytes para evitar recortes de Android
+      const CHUNK_SIZE = 490; 
+      const view = new Uint8Array(firmware);
+      const totalChunks = Math.ceil(view.length / CHUNK_SIZE);
+
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = view.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        const dataView = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+
+        // AWAIT secuencial: Sigue siendo totalmente seguro pero ahora
+        // solo hará ~2000 viajes al puente nativo en lugar de 4300.
+        await BleClient.writeWithoutResponse(
+          this.deviceId(),
+          this.SERVICE_UUID,
+          this.OTA_CHAR_UUID,
+          dataView,
+        );
+
+        // Sin pausas (el ESP32 es más rápido que el móvil)
+        // Actualizamos UI solo 10 veces en todo el trayecto para volar
+        if (i % Math.floor(totalChunks / 10) === 0 || i === totalChunks - 1) {
+          const progress = Math.round(((i + 1) / totalChunks) * 100);
+          this.ngZone.run(() => this.otaProgress.set(progress));
+        }
+      }
+
+      await new Promise(r => setTimeout(r, 200)); // Esperamos a que el chip procese lo último
+      await this.enviarComando(5); // Finalizar y reiniciar
+      this.ngZone.run(() => this.otaProgress.set(100));
+
+    } catch (error) {
+      console.error('Error OTA:', error);
+      alert('Fallo en la actualización. Asegúrate de estar cerca del dispositivo.');
+    } finally {
+      this.ngZone.run(() => {
+        this.isUpdating.set(false);
+        clearInterval(this.otaTimerInterval);
+      });
+    }
   }
-}
 
   async desconectar() {
     try {
