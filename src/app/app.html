@@ -1,7 +1,7 @@
 <div class="container">
   <h2>📡 Panel ESP32-S3</h2>
 
-  <div *ngIf="!bleService.isConnected()" class="fade-in">
+  <div *ngIf="!bleConnection.isConnected()" class="fade-in">
     <div class="card">
       <p>Pulsa el botón para buscar tu sensor de presión.</p>
       <button class="btn-connect" (click)="conectar()">
@@ -10,7 +10,7 @@
     </div>
   </div>
 
-  <div *ngIf="bleService.isConnected()" class="fade-in">
+  <div *ngIf="bleConnection.isConnected()" class="fade-in">
     <div class="status-badge">✅ VÍNCULO ESTABLECIDO</div>
     
     <div class="card">
@@ -19,7 +19,7 @@
         <button 
           [class]="isSensorOn() ? 'btn-off toggle-btn' : 'btn-on toggle-btn'" 
           (click)="toggleSensor()"
-          [disabled]="bleService.isDownloading() || bleService.isUpdating()">
+          [disabled]="sensorData.isDownloading() || firmwareOta.isUpdating()">
           {{ isSensorOn() ? '⏹ APAGAR SENSOR' : '▶ ACTIVAR SENSOR' }}
         </button>
       </div>
@@ -33,13 +33,13 @@
         </span>
       </div>
 
-      <div class="latest-reading" *ngIf="bleService.lecturas().length > 0">
-        <span class="big-value">{{ bleService.lecturas()[0] | number:'1.2-2' }}</span>
+      <div class="latest-reading" *ngIf="sensorData.lecturas().length > 0">
+        <span class="big-value">{{ sensorData.lecturas()[0] | number:'1.2-2' }}</span>
         <span class="big-unit">mB</span>
       </div>
 
-      <div class="history-list" *ngIf="bleService.lecturas().length > 1">
-        <div class="reading-item" *ngFor="let p of bleService.lecturas() | slice:1; let i = index">
+      <div class="history-list" *ngIf="sensorData.lecturas().length > 1">
+        <div class="reading-item" *ngFor="let p of sensorData.lecturas() | slice:1; let i = index">
           <span class="history-index">Hace {{ i + 1 }}00ms</span>
           <div>
             <span class="value">{{ p | number:'1.2-2' }}</span>
@@ -47,7 +47,7 @@
           </div>
         </div>
       </div>
-      <p class="empty-state" *ngIf="bleService.lecturas().length === 0">Esperando datos en vivo...</p>
+      <p class="empty-state" *ngIf="sensorData.lecturas().length === 0">Esperando datos en vivo...</p>
     </div>
 
     <div class="card" style="margin-top: 15px;">
@@ -56,18 +56,18 @@
       <div class="button-container" style="display: flex; gap: 10px; margin-bottom: 15px;">
         <button class="btn-connect" style="background-color: #6f42c1; flex: 2; padding: 15px;" 
                 (click)="descargarMemoria()" 
-                [disabled]="bleService.isDownloading() || bleService.isUpdating()">
-          {{ bleService.isDownloading() ? '⏳ DESCARGANDO...' : '📥 DESCARGAR DATOS' }}
+                [disabled]="sensorData.isDownloading() || firmwareOta.isUpdating()">
+          {{ sensorData.isDownloading() ? '⏳ DESCARGANDO...' : '📥 DESCARGAR DATOS' }}
         </button>
         <button class="btn-off" style="flex: 1; padding: 15px;" 
                 (click)="borrarMemoria()" 
-                [disabled]="bleService.isDownloading() || bleService.isUpdating()">
+                [disabled]="sensorData.isDownloading() || firmwareOta.isUpdating()">
           🗑 BORRAR
         </button>
       </div>
 
-      <div *ngIf="bleService.datosSpiffs().length > 0" class="table-container fade-in">
-        <p class="success-text">✅ {{ bleService.datosSpiffs().length }} registros recuperados.</p>
+      <div *ngIf="sensorData.datosSpiffs().length > 0" class="table-container fade-in">
+        <p class="success-text">✅ {{ sensorData.datosSpiffs().length }} registros recuperados.</p>
         
         <div class="scroll-table">
           <table>
@@ -78,7 +78,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let dato of bleService.datosSpiffs(); let i = index">
+              <tr *ngFor="let dato of sensorData.datosSpiffs(); let i = index">
                 <td>{{ i + 1 }}</td>
                 <td>{{ dato | number:'1.2-2' }}</td>
               </tr>
@@ -91,19 +91,19 @@
     <div class="card" style="margin-top: 15px;">
       <h3>🚀 Actualización Inalámbrica (OTA)</h3>
       <div style="display: flex; flex-direction: column; gap: 10px;">
-        <input #fileInput type="file" accept=".bin" (change)="onFileSelected($event)" [disabled]="bleService.isUpdating()">
+        <input #fileInput type="file" accept=".bin" (change)="onFileSelected($event)" [disabled]="firmwareOta.isUpdating()">
         
         <button class="btn-connect" style="background-color: #ff8c00;" 
                 (click)="iniciarActualizacion()" 
-                [disabled]="bleService.isUpdating()">
-          {{ bleService.isUpdating() ? 'ACTUALIZANDO...' : 'INICIAR ACTUALIZACIÓN' }}
+                [disabled]="firmwareOta.isUpdating()">
+          {{ firmwareOta.isUpdating() ? 'ACTUALIZANDO...' : 'INICIAR ACTUALIZACIÓN' }}
         </button>
         
-        <div *ngIf="bleService.otaProgress() > 0" style="margin-top: 10px;">
-          <progress [value]="bleService.otaProgress()" max="100" style="width: 100%;"></progress>
+        <div *ngIf="firmwareOta.otaProgress() > 0" style="margin-top: 10px;">
+          <progress [value]="firmwareOta.otaProgress()" max="100" style="width: 100%;"></progress>
           <div style="display: flex; justify-content: space-between; font-size: 0.9em; margin-top: 5px; font-weight: bold;">
-            <span>{{ bleService.otaProgress() }}% completado</span>
-            <span>⏱️ {{ bleService.otaTimeSeconds() }}s transcurridos</span>
+            <span>{{ firmwareOta.otaProgress() }}% completado</span>
+            <span>⏱️ {{ firmwareOta.otaTimeSeconds() }}s transcurridos</span>
           </div>
         </div>
       </div>

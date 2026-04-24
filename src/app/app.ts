@@ -1,5 +1,8 @@
 import { Component, OnInit, signal, ViewChild, ElementRef } from '@angular/core';
-import { BleService } from './services/ble.service';
+// Importamos los 3 nuevos servicios
+import { BleConnectionService } from './services/ble-connection.service';
+import { SensorDataService } from './services/sensor-data.service';
+import { FirmwareOtaService } from './services/firmware-ota.service';
 
 @Component({
   selector: 'app-root',
@@ -16,42 +19,53 @@ export class AppComponent implements OnInit {
   
   @ViewChild('fileInput') fileInput!: ElementRef; 
 
-  constructor(public bleService: BleService) {}
+  // Inyectamos los 3 servicios como públicos para poder usarlos en el HTML
+  constructor(
+    public bleConnection: BleConnectionService,
+    public sensorData: SensorDataService,
+    public firmwareOta: FirmwareOtaService
+  ) {}
 
   async ngOnInit() {
-    await this.bleService.init();
+    // Inicializamos el motor Bluetooth desde la capa de red
+    await this.bleConnection.init();
   }
 
   async conectar() {
-    await this.bleService.conectarESP32();
+    // 1. Levantamos la conexión física
+    await this.bleConnection.conectarESP32();
+    // 2. Justo después, nos suscribimos para escuchar al sensor
+    await this.sensorData.iniciarSuscripcionSensor();
   }
 
   async toggleSensor() {
-    if (this.bleService.isDownloading()) return; 
+    if (this.sensorData.isDownloading()) return; 
 
     this.isSensorOn.update(v => !v);
-    await this.bleService.enviarComando(this.isSensorOn() ? 1 : 0);
+    await this.sensorData.enviarComando(this.isSensorOn() ? 1 : 0);
   }
 
   async descargarMemoria() {
     this.isSensorOn.set(false); 
-    this.bleService.datosSpiffs.set([]); 
-    this.bleService.isDownloading.set(true); 
+    this.sensorData.datosSpiffs.set([]); 
+    this.sensorData.isDownloading.set(true); 
     
-    await this.bleService.enviarComando(2); 
+    await this.sensorData.enviarComando(2); 
   }
 
   async borrarMemoria() {
     const seguro = confirm('¿Estás seguro de borrar toda la memoria del sensor?');
     if (seguro) {
-      await this.bleService.enviarComando(3);
-      this.bleService.datosSpiffs.set([]);
+      await this.sensorData.enviarComando(3);
+      this.sensorData.datosSpiffs.set([]);
       alert('Memoria borrada con éxito.');
     }
   }
 
   async desconectar() {
-    await this.bleService.desconectar();
+    // Solo llamamos a desconectar en la capa de red.
+    // Los servicios de OTA y Sensor se limpian solos gracias a su effect().
+    await this.bleConnection.desconectar();
     this.isSensorOn.set(false);
   }
 
@@ -74,8 +88,8 @@ export class AppComponent implements OnInit {
     const firmware = this.selectedFirmware();
 
     if (firmware) {
-      // 1. Enviamos el firmware
-      await this.bleService.enviarOTA(firmware);
+      // 1. Usamos el servicio dedicado exclusivamente a la OTA
+      await this.firmwareOta.enviarOTA(firmware);
       
       // 2. Limpiamos las variables y el recuadro cuando termine
       this.selectedFirmware.set(null);
@@ -83,7 +97,6 @@ export class AppComponent implements OnInit {
         this.fileInput.nativeElement.value = ''; 
       }
     } else {
-      // Ahora esta alerta sí saldrá si intentas pulsar el botón sin archivo
       alert('Por favor, selecciona un archivo .bin primero.');
     }
   }
