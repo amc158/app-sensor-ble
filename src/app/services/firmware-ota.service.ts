@@ -54,6 +54,14 @@ export class FirmwareOtaService {
   async enviarOTA(firmware: ArrayBuffer) {
     if (!this.connection.isConnected()) return;
 
+    // --- SEGURIDAD: VERIFICACIÓN DE MAGIC BYTE ESP32 ---
+    // Un binario original de ESP32 siempre empieza por el byte hexadecimal 0xE9.
+    const validacion = new Uint8Array(firmware);
+    if (validacion.length < 100 || validacion[0] !== 0xE9) {
+      alert('🔒 Seguridad: El archivo no es un firmware (.bin) válido de ESP32.');
+      return; // Abortamos antes de enviar nada por Bluetooth
+    }
+
     // Preparamos la UI (Crono a 0, barra a 0)
     this.ngZone.run(() => {
       this.isUpdating.set(true);
@@ -75,14 +83,13 @@ export class FirmwareOtaService {
 
       // --- OPTIMIZACIÓN VITAL 2: MEGA PAQUETES (490 bytes) ---
       const CHUNK_SIZE = 490; 
-      const view = new Uint8Array(firmware);
-      const totalChunks = Math.ceil(view.length / CHUNK_SIZE);
+      const totalChunks = Math.ceil(validacion.length / CHUNK_SIZE);
 
       // Detectamos el entorno de ejecución (Web o Nativo)
       const isWeb = !Capacitor.isNativePlatform();
 
       for (let i = 0; i < totalChunks; i++) {
-        const chunk = view.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        const chunk = validacion.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
         const dataView = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
 
         // Envío "Dispara y Olvida".
@@ -118,15 +125,31 @@ export class FirmwareOtaService {
       // Fin del bucle. Esperamos 200ms para asegurar el envío aéreo final.
       await new Promise(r => setTimeout(r, 200)); 
       
-      // Enviamos comando 5 (Fin OTA y reinicio)
-      await this.enviarComandoOta(5); 
+      // --- CAMBIO CLAVE: Enviamos el comando 5 exigiendo respuesta ---
+      // Usamos BleClient.write() (normal) en lugar de writeWithoutResponse()
+      // Esto hace que la app se espere matemáticamente hasta que el ESP32 verifique la firma.
+      await BleClient.write(
+        this.connection.deviceId(),
+        this.connection.SERVICE_UUID,
+        this.CHAR_UUID,
+        numbersToDataView([5])
+      );
       
-      // Marcamos el éxito total
+      // Si el código llega aquí, significa que el ESP32 validó la firma y respondió OK.
       this.ngZone.run(() => this.otaProgress.set(100));
+      alert('¡Actualización completada con éxito! El dispositivo se está reiniciando.');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error OTA:', error);
-      alert('Fallo en la actualización. Asegúrate de estar cerca del dispositivo.');
+      
+      // Si el ESP32 devuelve el error 0x05, el catch lo captura instantáneamente
+      this.ngZone.run(() => {
+        this.isUpdating.set(false);
+        this.otaProgress.set(0); // Reseteamos la barra visualmente
+      });
+
+      alert('🔒 ACTUALIZACIÓN BLOQUEADA: El archivo no tiene una firma de seguridad válida o ha sido corrompido.');
+      
     } finally {
       // Limpieza post-actualización
       this.ngZone.run(() => {
