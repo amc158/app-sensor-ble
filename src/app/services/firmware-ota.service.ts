@@ -2,11 +2,10 @@ import { Injectable, signal, NgZone, effect } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
 import { BleClient, numbersToDataView } from '@capacitor-community/bluetooth-le';
 import { BleConnectionService } from './ble-connection.service';
-import { KeepAwake } from '@capacitor-community/keep-awake'; // <-- Fase 3: Prevenir sueño
+import { KeepAwake } from '@capacitor-community/keep-awake';
 
 /**
- * UTILERÍA: WATCHDOG (PERRO GUARDIÁN)
- * Envuelve una promesa y la aborta si tarda más de 'ms' milisegundos.
+ * UTILERÍA: WATCHDOG
  */
 const withTimeout = <T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> => {
   let timeoutId: any;
@@ -20,8 +19,9 @@ const withTimeout = <T>(promise: Promise<T>, ms: number, errorMessage: string): 
   providedIn: 'root',
 })
 export class FirmwareOtaService {
-  private readonly CHAR_UUID = '21436587-2143-6587-2143-658721436587';
-  private readonly OTA_CHAR_UUID = '31436587-2143-6587-2143-658721436587';
+  // UUIDs cortos (alias)
+  private readonly CHAR_FIRMWARE_UUID = '2a32'; 
+  private readonly CHAR_FINISH_UUID = '2a33';   
 
   public isUpdating = signal<boolean>(false);
   public otaProgress = signal<number>(0);
@@ -42,44 +42,30 @@ export class FirmwareOtaService {
   private abortarOTA() {
     this.isUpdating.set(false);
     this.otaProgress.set(0);
-    clearInterval(this.otaTimerInterval);
+    if (this.otaTimerInterval) clearInterval(this.otaTimerInterval);
   }
 
-  // Método para enviar comandos con Watchdog de 3 segundos
-  private async enviarComandoOta(cmd: number) {
-    if (!this.connection.isConnected()) return;
-    await withTimeout(
-      BleClient.writeWithoutResponse(
-        this.connection.deviceId(),
-        this.connection.SERVICE_UUID,
-        this.CHAR_UUID,
-        numbersToDataView([cmd])
-      ),
-      3000,
-      'WATCHDOG: El ESP32 no respondió al comando de control.'
-    );
-  }
-
-  // =====================================================================
-  // --- FUNCIÓN OTA MAESTRA: SEGURIDAD, VELOCIDAD Y ESTABILIDAD ---
-  // =====================================================================
-  async enviarOTA(firmware: ArrayBuffer) {
+  async enviarOTA(firmware: ArrayBuffer, filename: string = "waveshare_firmware.bin") {
     if (!this.connection.isConnected()) return;
 
-    // --- FASE 2: SEGURIDAD (MAGIC BYTE) ---
     const validacion = new Uint8Array(firmware);
-    if (validacion.length < 100 || validacion[0] !== 0xE9) {
-      alert('🔒 Seguridad: El archivo no es un firmware (.bin) válido de ESP32.');
+    
+    if (validacion.length < 100) {
+      alert('🔒 Error: El archivo es demasiado pequeño.');
       return; 
     }
 
-    // --- FASE 3: MONITOR DE ESTADO BLUETOOTH ---
+    // --- PREPARAR UUIDS EXPANDIDOS (128 bits) ---
+    // Expandimos una sola vez al inicio para no sobrecargar el bucle
+    const serviceUuid = this.connection.expandUuid(this.connection.SERVICE_UUID);
+    const charFirmwareUuid = this.connection.expandUuid(this.CHAR_FIRMWARE_UUID);
+    const charFinishUuid = this.connection.expandUuid(this.CHAR_FINISH_UUID);
+
     let isBluetoothEnabled = true;
     await BleClient.startEnabledNotifications((enabled) => {
       isBluetoothEnabled = enabled;
     });
 
-    // Preparar UI
     this.ngZone.run(() => {
       this.isUpdating.set(true);
       this.otaProgress.set(0);
@@ -91,109 +77,115 @@ export class FirmwareOtaService {
     }, 1000);
 
     try {
-      // --- FASE 3: WAKELOCK (Mantener pantalla encendida) ---
       if (Capacitor.isNativePlatform()) {
         await KeepAwake.keepAwake();
       }
 
-      // 1. Inicio OTA
-      await this.enviarComandoOta(4); 
+      // --- PASO 1: ENVIAR JSON DE METADATOS ---
+      const metadata = {
+        filename: filename,
+        expected_size: validacion.length
+      };
+      
+      const metadataStr = JSON.stringify(metadata);
+      const encoder = new TextEncoder();
+      const metadataBytes = encoder.encode(metadataStr);
+
+      await withTimeout(
+        BleClient.write(
+          this.connection.deviceId(),
+          serviceUuid,        // ✅ Aplicado UUID expandido
+          charFirmwareUuid,   // ✅ Aplicado UUID expandido
+          new DataView(metadataBytes.buffer)
+        ),
+        3000,
+        'WATCHDOG: No se pudo enviar el JSON de metadatos.'
+      );
+
       await new Promise(r => setTimeout(r, 500)); 
 
+      // --- PASO 2: ENVIAR EL ARCHIVO ---
       const CHUNK_SIZE = 490; 
       const totalChunks = Math.ceil(validacion.length / CHUNK_SIZE);
-      const isWeb = !Capacitor.isNativePlatform();
 
       for (let i = 0; i < totalChunks; i++) {
-        // Validación en tiempo real: Si el usuario apaga el BT, abortamos
-        if (!isBluetoothEnabled) {
-          throw new Error('BLUETOOTH_APAGADO_MANUAL');
-        }
+        if (!isBluetoothEnabled) throw new Error('BLUETOOTH_APAGADO_MANUAL');
 
         const chunk = validacion.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
         const dataView = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
 
-        // Envío del fragmento
         await withTimeout(
           BleClient.writeWithoutResponse(
             this.connection.deviceId(),
-            this.connection.SERVICE_UUID,
-            this.OTA_CHAR_UUID,
+            serviceUuid,       // ✅ Aplicado UUID expandido
+            charFirmwareUuid,  // ✅ Aplicado UUID expandido
             dataView,
           ),
           3000,
           'WATCHDOG: Error de comunicación en el envío.'
         );
 
-        // --- SOLUCIÓN: MARCAPASOS UNIVERSAL (FLOW CONTROL) ---
-        // Cada 20 paquetes (unos 9KB), hacemos una lectura síncrona.
-        // Esto frena el bucle JS, obligando al OS del móvil a vaciar su buffer
-        // de hardware hacia el ESP32. Adiós a la pérdida de paquetes.
+        // --- MARCAPASOS UNIVERSAL ---
         if (i > 0 && i % 20 === 0) {
           try {
             await withTimeout(
-              BleClient.read(this.connection.deviceId(), this.connection.SERVICE_UUID, this.CHAR_UUID),
+              BleClient.read(this.connection.deviceId(), serviceUuid, charFirmwareUuid), // ✅ Aplicado
               3000,
               'WATCHDOG: El ping de sincronización ha fallado.'
             );
           } catch (e) {} 
         }
         
-        // Actualización de la barra UI
         if (i % 20 === 0 || i === totalChunks - 1) {
           const progress = Math.round(((i + 1) / totalChunks) * 100);
           this.ngZone.run(() => this.otaProgress.set(progress));
         }
       }
 
-      await new Promise(r => setTimeout(r, 200)); 
-      
-      // --- FASE 3: WATCHDOG EN VERIFICACIÓN FINAL (5s) ---
-      // Damos 5 segundos porque las matemáticas RSA del ESP32 toman tiempo.
+      await new Promise(r => setTimeout(r, 1000)); // Aumenta de 200ms a 1000ms
+
+// --- PASO 3: SEÑAL DE FINALIZACIÓN ---
       await withTimeout(
         BleClient.write(
           this.connection.deviceId(),
-          this.connection.SERVICE_UUID,
-          this.CHAR_UUID,
-          numbersToDataView([5])
+          serviceUuid,
+          charFinishUuid, 
+          numbersToDataView([1])
         ),
-        5000,
-        'WATCHDOG: El ESP32 no respondió tras verificar la firma.'
+        5000, // 5 segundos es suficiente ahora que el ESP32 no bloquea
+        'El dispositivo no confirmó el cierre de la transferencia.'
       );
       
       this.ngZone.run(() => this.otaProgress.set(100));
-      alert('✅ Actualización exitosa. El dispositivo se está reiniciando.');
+      alert('✅ ¡Transferencia completada! El dispositivo se está reiniciando.');
+      
+      this.ngZone.run(() => this.otaProgress.set(100));
+      alert('✅ Archivo subido con éxito.');
 
     } catch (error: any) {
       console.error('Error Crítico OTA:', error);
-      
       this.ngZone.run(() => {
         this.isUpdating.set(false);
         this.otaProgress.set(0);
       });
 
-      // Mensajes de error deterministas
       if (error.message === 'BLUETOOTH_APAGADO_MANUAL') {
-        alert('❌ Error: El Bluetooth se apagó durante el proceso.');
+        alert('❌ Error: El Bluetooth se apagó.');
       } else if (error.message.includes('WATCHDOG')) {
-        alert(`⏱️ ${error.message} \n\nAsegúrate de estar cerca del dispositivo e inténtalo de nuevo.`);
+        alert(`⏱️ ${error.message}`);
       } else {
-        alert('🔒 ERROR DE SEGURIDAD: Firma inválida o archivo corrupto. El dispositivo rechazó la actualización.');
+        alert('🔒 ERROR: Se interrumpió la transferencia.');
       }
       
     } finally {
-      // --- FASE 3: LIMPIEZA TOTAL ---
       this.ngZone.run(() => {
         this.isUpdating.set(false);
-        clearInterval(this.otaTimerInterval);
+        if (this.otaTimerInterval) clearInterval(this.otaTimerInterval);
       });
 
-      // Liberamos el WakeLock (Permitir que la pantalla se apague de nuevo)
       if (Capacitor.isNativePlatform()) {
         KeepAwake.allowSleep().catch(() => {});
       }
-
-      // Detenemos el monitor de Bluetooth
       BleClient.stopEnabledNotifications().catch(() => {});
     }
   }

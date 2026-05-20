@@ -1,24 +1,19 @@
 import { Injectable, signal, NgZone } from '@angular/core';
 import { BleClient } from '@capacitor-community/bluetooth-le';
 
-/**
- * SERVICIO DE CONEXIÓN BLUETOOTH
- * Gestiona exclusivamente el enlace físico con el ESP32, permisos y estado de conexión.
- */
 @Injectable({
   providedIn: 'root',
 })
 export class BleConnectionService {
-  // UUID público para que los otros servicios puedan leerlo
-  public readonly SERVICE_UUID = '56781234-5678-1234-5678-123412345678';
+  // ✅ Formatos cortos (alias) para facilitar la lectura
+  public readonly SERVICE_UUID = '180d';
+  public readonly OTA_CHARACTERISTIC_UUID = '2a32';
 
-  // --- SEÑALES REACTIVAS DE CONEXIÓN ---
   public deviceId = signal<string>('');
   public isConnected = signal<boolean>(false);
 
   constructor(private ngZone: NgZone) {}
 
-  // Inicializa el motor de Capacitor Bluetooth LE pidiendo permisos al OS.
   async init() {
     try {
       await BleClient.initialize();
@@ -27,19 +22,15 @@ export class BleConnectionService {
     }
   }
 
-  // --- PROCESO DE CONEXIÓN FÍSICA ---
   async conectarESP32() {
     try {
       await BleClient.initialize();
       
-      // Abre el popup nativo del SO para escanear dispositivos. 
-      // Filtra para mostrar solo los que emiten nuestro SERVICE_UUID.
+      // ELIMINA CUALQUIER FILTRO DE NOMBRE TEMPORALMENTE
       const device = await BleClient.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: [this.SERVICE_UUID],
+        acceptAllDevices: true, // Esto mostrará HASTA LA TV DEL VECINO
       } as any);
 
-      // Conecta y establece un callback de desconexión.
       await BleClient.connect(device.deviceId, (id) => {
         this.ngZone.run(() => {
           this.isConnected.set(false);
@@ -47,9 +38,6 @@ export class BleConnectionService {
         });
       });
 
-      // --- OPTIMIZACIÓN VITAL 1: PRIORIDAD ALTA ---
-      // Le exige a Android/iOS que no ahorre batería y dedique la máxima 
-      // frecuencia de radio posible a esta conexión. Baja la latencia al mínimo físico.
       try {
         await BleClient.requestConnectionPriority(device.deviceId, 'high' as any);
       } catch (e) {
@@ -67,8 +55,6 @@ export class BleConnectionService {
     }
   }
 
-  // --- DESCONEXIÓN MANUAL ---
-  // Cierra el enlace físico. Los otros servicios lo detectarán automáticamente vía effect().
   async desconectar() {
     try {
       if (this.deviceId()) {
@@ -81,5 +67,18 @@ export class BleConnectionService {
     } catch (error) {
       console.error('Error al desconectar', error);
     }
+  }
+
+  /**
+   * ✅ TRADUCTOR AUTOMÁTICO
+   * Mantenlo como 'public' para que tu servicio de OTA 
+   * pueda hacer: this.bleConn.expandUuid('2a32')
+   */
+  public expandUuid(uuid: string): string {
+    if (uuid.length === 36) {
+      return uuid.toLowerCase();
+    }
+    const shortUuid = uuid.padStart(4, '0').toLowerCase();
+    return `0000${shortUuid}-0000-1000-8000-00805f9b34fb`;
   }
 }

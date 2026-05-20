@@ -27,27 +27,55 @@
 
     <div class="card readings-card">
       <div class="readings-header">
-        <h3>Datos de Presión</h3>
+        <h3>Dashboard Agrícola</h3>
         <span [class]="isSensorOn() ? 'badge-live' : 'badge-paused'">
           {{ isSensorOn() ? '🔴 EN VIVO' : '⏸ PAUSADO' }}
         </span>
       </div>
 
-      <div class="latest-reading" *ngIf="sensorData.lecturas().length > 0">
-        <span class="big-value">{{ sensorData.lecturas()[0] | number:'1.2-2' }}</span>
-        <span class="big-unit">mB</span>
-      </div>
-
-      <div class="history-list" *ngIf="sensorData.lecturas().length > 1">
-        <div class="reading-item" *ngFor="let p of sensorData.lecturas() | slice:1; let i = index">
-          <span class="history-index">Hace {{ i + 1 }}00ms</span>
-          <div>
-            <span class="value">{{ p | number:'1.2-2' }}</span>
-            <span class="unit"> mB</span>
+      <div *ngIf="sensorData.lecturas().length > 0">
+        <div class="dashboard-grid">
+          
+          <div class="dash-box box-blue">
+            <h4>💦 Riego (RAD)</h4>
+            <span class="val">{{ sensorData.lecturas()[0].presion | number:'1.2-2' }}</span>
+            <span class="unit">mB</span>
           </div>
+
+          <div class="dash-box box-green">
+            <h4>🌱 MEC10 (Clima)</h4>
+            <div class="sub-grid">
+              <div>
+                <span class="val-small">{{ sensorData.lecturas()[0].temp1 | number:'1.1-1' }}°C</span>
+              </div>
+              <div>
+                <span class="val-small">{{ sensorData.lecturas()[0].hum1 | number:'1.1-1' }}%</span>
+              </div>
+              <div style="grid-column: span 2;">
+                <span class="val-small">{{ sensorData.lecturas()[0].ec1 }} <small>us/cm</small></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="dash-box box-orange" style="grid-column: span 2;">
+            <h4>🧪 Nutrientes (NPK)</h4>
+            <div class="sub-grid-3">
+              <div>
+                <span class="val-small">N: {{ sensorData.lecturas()[0].nitrogeno }}</span>
+              </div>
+              <div>
+                <span class="val-small">P: {{ sensorData.lecturas()[0].fosforo }}</span>
+              </div>
+              <div>
+                <span class="val-small">K: {{ sensorData.lecturas()[0].potasio }}</span>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
-      <p class="empty-state" *ngIf="sensorData.lecturas().length === 0">Esperando datos en vivo...</p>
+
+      <p class="empty-state" *ngIf="sensorData.lecturas().length === 0">Esperando datos de la red RS485...</p>
     </div>
 
     <div class="card" style="margin-top: 15px;">
@@ -74,13 +102,17 @@
             <thead>
               <tr>
                 <th>#</th>
-                <th>Presión (mB)</th>
+                <th>💦 Presión</th>
+                <th>🌡️ Temp / Hum</th>
+                <th>🧪 N / P / K</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let dato of sensorData.datosSpiffs(); let i = index">
                 <td>{{ i + 1 }}</td>
-                <td>{{ dato | number:'1.2-2' }}</td>
+                <td><strong>{{ dato.presion | number:'1.2-2' }} mB</strong></td>
+                <td>{{ dato.temp1 | number:'1.1-1' }}°C | {{ dato.hum1 | number:'1.1-1' }}%</td>
+                <td>{{ dato.nitrogeno }} | {{ dato.fosforo }} | {{ dato.potasio }}</td>
               </tr>
             </tbody>
           </table>
